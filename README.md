@@ -16,3 +16,6 @@ extract_centroids_wpt_missions(trees_polygon_path = "DJI_mapping/50haplot/50hapl
 
 
 2. The "photo_classification_by_cluster.R" script is a way to classify all the wide and close-up ("zoom") photos within their correct cluster. It helps visualizing the accuracy of the clustering algorithm after having uploaded the photos from the previously generated and executed close-up photo drone mission.
+
+
+test VLF
