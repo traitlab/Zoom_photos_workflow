@@ -24,7 +24,8 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   dsm_max <- NA
   
   # Read tree polygons file
-  trees <- st_read(trees_polygon_path)
+  trees <- st_read(trees_polygon_path) %>% 
+    mutate(fid = rownames(.))
   
   # Read DSM raster file
   dsm_crs <- paste0("EPSG:", espg_code)
@@ -84,7 +85,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
     st_write(sampled_trees_centroids, output_centroids_file, append = FALSE)
   
   
-  # Plot AOI
+  # Plot centroids
   ggplot()+
     geom_sf(data=sampled_trees_centroids)+
     theme_bw()
@@ -118,11 +119,13 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   
   # Rename columns for CSV export
+  cluster_column <- if ("cluster_id" %in% colnames(waypoints_transformed)) "cluster_id" else NULL
+  
   waypoints_transformed_renamed <- waypoints_transformed %>% 
     mutate(lon_x = st_coordinates(waypoints_transformed)[, 1],
            lat_y = st_coordinates(waypoints_transformed)[, 2],
-           polygon_id = polygon_id,
-           cluster_id = polygon_id,
+           polygon_id = fid,
+           cluster_id = if (!is.null(cluster_column)) .data[[cluster_column]] else fid,
            order = 1:nrow(waypoints_transformed),
            distance_from_takeoff_point = 0,
            index = 0) %>% 
