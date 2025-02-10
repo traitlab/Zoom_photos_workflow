@@ -25,7 +25,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   # Read tree polygons file
   trees <- st_read(trees_polygon_path) %>% 
-    mutate(fid = rownames(.))
+    mutate(fid = as.integer(rownames(.)))
   
   # Read DSM raster file
   dsm_crs <- paste0("EPSG:", espg_code)
