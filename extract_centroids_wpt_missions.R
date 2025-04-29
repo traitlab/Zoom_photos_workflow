@@ -7,16 +7,6 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            espg_code) #required, projected CRS
   {
   
-  
-  trees_polygon_path = "20241125_bci25haplot_m3e_rgb_gr0p07_infer.gpkg"
-  aoi_path = "25haplot_wptne.kml"
-  aoi_index = 1
-  aoi_qualifier = "ne"
-  aoi_relation = "intersect"
-  dsm_path = "20241125_bci25haplot_m3e_dsm.cog.tif"
-  espg_code = 32617
-  
-  
   require(exactextractr)
   require(raster)
   require(sf)
@@ -181,28 +171,64 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   buffered_path <- st_buffer(vector_lines_utm, dist=1)
   
-  #plot(buffered_path[1])
+  plot(buffered_path[1])
   
   #highest value for each vector line
-  highest_point <- exact_extract(dsm_raster, buffered_path, fun = c('max')
+  highest_point <- exact_extract(dsm_raster, buffered_path, fun = c('max'))
   
-  #
+  #extract central points for path
+  buffer_centroids <- st_centroid(buffered_path)
+  
+  #Vector of zeros (factice polygon_ID for checkpoints)
+  fid <- numeric(n-1)
+
+  #dataframe with only checkpoints
+  checkpoints_transformed <- cbind(buffer_centroids,fid, highest_point)%>%
+    rename(elev=highest_point,
+         geom=geometry)%>%
+    st_transform(4326)
+
+  #Add checkpoints between waypoints
+    # Empty list to store result
+  interleaved_points <- list()
+  
+  for (i in 1:(nrow(waypoints_transformed) - 1)) {
+    
+    # Add start waypoint and add type wpt
+    wpt <- waypoints_transformed[i,10:12 ] %>% mutate(type = "wpt")
+    interleaved_points[[length(interleaved_points) + 1]] <- wpt
+    
+    # Extract relevant checkpoint (for example, by index — adjust to your logic) and add type cpt
+    checkpoint <- checkpoints_transformed[i,5:7 ] %>% mutate(type = "cpt")
+
+    # Add checkpoint in between
+    interleaved_points[[length(interleaved_points) + 1]] <- checkpoint
+  }
+  
+  # Add the last waypoint and type
+  last_wp <- waypoints_transformed[nrow(waypoints_transformed), 10:12 ] %>% mutate(type = "wpt")
+  interleaved_points[[length(interleaved_points) + 1]] <- last_wp
+  
+  # Bind into a single sf object
+  combined_sf_transformed <- do.call(rbind, interleaved_points)
   
   
   #####Preparation for formatting CSV file####
-  waypoints_transformed_renamed <- waypoints_transformed %>% 
-    mutate(lon_x = st_coordinates(waypoints_transformed)[, 1],
-           lat_y = st_coordinates(waypoints_transformed)[, 2],
+  points_transformed_renamed <- combined_sf_transformed %>% 
+    mutate(lon_x = st_coordinates(combined_sf_transformed)[, 1],
+           lat_y = st_coordinates(combined_sf_transformed)[, 2],
            polygon_id = fid,
            cluster_id = if (!is.null(cluster_column)) .data[[cluster_column]] else fid,
-           order = 1:nrow(waypoints_transformed),
-           distance_from_takeoff_point = 0,
-           index = 0) %>% 
-#task_type=type)
+           order = 1:nrow(combined_sf_transformed),
+           #distance_from_takeoff_point = 0, ##TO REMOVE
+           index = 0,
+           type=type) %>% 
+    
     dplyr::select(index,
                   polygon_id,
                   cluster_id,
-                  distance_from_takeoff_point,
+                  type, # takes place of distance from takeoff point column
+                  #distance_from_takeoff_point,
                   lon_x,
                   lat_y,
                   elevation_from_dsm = elev,
