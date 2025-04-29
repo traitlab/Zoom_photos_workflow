@@ -6,15 +6,6 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            dsm_path, #required, DSM from the mapping mission
                                            espg_code) #required, projected CRS
   {
-  
-#  trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg"
-#  dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif"
-#  espg_code = 32618
-#  aoi_path=""
-#  aoi_qualifier=""
-#  aoi_relation=""
-#  aoi_index=1
-  
   require(exactextractr)
   require(raster)
   require(sf)
