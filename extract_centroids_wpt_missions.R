@@ -181,8 +181,15 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   buffered_path <- st_buffer(vector_lines_utm, dist=1)
   
-  plot(buffered_path[1])
+  #plot(buffered_path[1])
   
+  #highest value for each vector line
+  highest_point <- exact_extract(dsm_raster, buffered_path, fun = c('max')
+  
+  #
+  
+  
+  #####Preparation for formatting CSV file####
   waypoints_transformed_renamed <- waypoints_transformed %>% 
     mutate(lon_x = st_coordinates(waypoints_transformed)[, 1],
            lat_y = st_coordinates(waypoints_transformed)[, 2],
