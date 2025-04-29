@@ -7,6 +7,16 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            espg_code) #required, projected CRS
   {
   
+  
+  trees_polygon_path = "20241125_bci25haplot_m3e_rgb_gr0p07_infer.gpkg"
+  aoi_path = "25haplot_wptne.kml"
+  aoi_index = 1
+  aoi_qualifier = "ne"
+  aoi_relation = "intersect"
+  dsm_path = "20241125_bci25haplot_m3e_dsm.cog.tif"
+  espg_code = 32617
+  
+  
   require(exactextractr)
   require(raster)
   require(sf)
@@ -121,6 +131,58 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   # Rename columns for CSV export
   cluster_column <- if ("cluster_id" %in% colnames(waypoints_transformed)) "cluster_id" else NULL
   
+  #Adding max height between each pair of points
+  #Extracting coordinates points
+  
+  coords <- st_coordinates(sorted_waypoints)
+  
+  # Compute pairwise vectors for following points
+  n <- nrow(coords)
+  vector_list <- list()
+  
+  for (i in 1:n) {
+      if (i<n) {
+        # Compute vector from point i to point i+1
+        dx <- coords[i + 1, 1] - coords[i, 1]
+        dy <- coords[i + 1, 2] - coords[i, 2]
+        vector_list[[length(vector_list) + 1]] <- data.frame(
+          from = i,
+          to = i + 1,
+          dx = dx,
+          dy = dy)
+      }
+    }
+  
+  # Combine results into a data frame
+  vectors_df <- bind_rows(vector_list)
+  
+  # Convert as vectors and project coordinates
+   #Create LINESTRING geometries between each pair
+  line_geoms <- vector("list", length = nrow(vectors_df))
+  
+  for (i in seq_len(nrow(vectors_df))) {
+    coords_pair <- rbind(
+      st_coordinates(sorted_waypoints[i, ]),
+      st_coordinates(sorted_waypoints[i+1, ])
+    )
+    line_geoms[[i]] <- st_linestring(coords_pair)
+  }
+  
+  #Create sf object from these geometries
+  vector_lines <- st_sf(
+    vectors_df,
+    geometry = st_sfc(line_geoms, crs = st_crs(sorted_waypoints))
+  )
+  
+  # Reproject to UTM Zone 17N (EPSG: 32617)
+  vector_lines_utm <- st_transform(vector_lines, crs = 32617)
+  
+  #Add a 1m buffer for vector lines between pair of points
+  
+  buffered_path <- st_buffer(vector_lines_utm, dist=1)
+  
+  plot(buffered_path[1])
+  
   waypoints_transformed_renamed <- waypoints_transformed %>% 
     mutate(lon_x = st_coordinates(waypoints_transformed)[, 1],
            lat_y = st_coordinates(waypoints_transformed)[, 2],
@@ -129,6 +191,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
            order = 1:nrow(waypoints_transformed),
            distance_from_takeoff_point = 0,
            index = 0) %>% 
+#task_type=type)
     dplyr::select(index,
                   polygon_id,
                   cluster_id,
@@ -163,10 +226,10 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
 # Example usage
 # source("extract_centroids_wpt_missions.R")
 # 
-# extract_centroids_wpt_missions(trees_polygon_path = "DJI_mapping/50haplot/50haplot_treesover100m2.gpkg",
-#                                aoi_path = "DJI_mapping/50haplot/bci50haplot_aoi.gpkg",
-#                                aoi_index = 1,
-#                                aoi_qualifier = "so",
-#                                aoi_relation = "intersect",
-#                                dsm_path = "conrad/20241121_bci50haplot_m3e/20241121_bci50haplot_m3e_dsm.tif",
-#                                espg_code = 32617)
+extract_centroids_wpt_missions(trees_polygon_path = "20241125_bci25haplot_m3e_rgb_gr0p07_infer.gpkg",
+                                aoi_path = "25haplot_wptne.kml",
+                                aoi_index = 1,
+                                aoi_qualifier = "ne",
+                                aoi_relation = "intersect",
+                                dsm_path = "20241125_bci25haplot_m3e_dsm.cog.tif",
+                                espg_code = 32617)
