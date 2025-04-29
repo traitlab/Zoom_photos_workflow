@@ -7,6 +7,14 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            espg_code) #required, projected CRS
   {
   
+#  trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg"
+#  dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif"
+#  espg_code = 32618
+#  aoi_path=""
+#  aoi_qualifier=""
+#  aoi_relation=""
+#  aoi_index=1
+  
   require(exactextractr)
   require(raster)
   require(sf)
@@ -195,18 +203,18 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   for (i in 1:(nrow(waypoints_transformed) - 1)) {
     
     # Add start waypoint and add type wpt
-    wpt <- waypoints_transformed[i,10:12 ] %>% mutate(type = "wpt")
+    wpt <- waypoints_transformed[i,(ncol(waypoints_transformed)-2):(ncol(waypoints_transformed))] %>% mutate(type = "wpt")
     interleaved_points[[length(interleaved_points) + 1]] <- wpt
     
     # Extract relevant checkpoint (for example, by index — adjust to your logic) and add type cpt
-    checkpoint <- checkpoints_transformed[i,5:7 ] %>% mutate(type = "cpt")
+    checkpoint <- checkpoints_transformed[i,(ncol(checkpoints_transformed)-2):(ncol(checkpoints_transformed))] %>% mutate(type = "cpt")
 
     # Add checkpoint in between
     interleaved_points[[length(interleaved_points) + 1]] <- checkpoint
   }
   
   # Add the last waypoint and type
-  last_wp <- waypoints_transformed[nrow(waypoints_transformed), 10:12 ] %>% mutate(type = "wpt")
+  last_wp <- waypoints_transformed[nrow(waypoints_transformed), (ncol(waypoints_transformed)-2):(ncol(waypoints_transformed)) ] %>% mutate(type = "wpt")
   interleaved_points[[length(interleaved_points) + 1]] <- last_wp
   
   # Bind into a single sf object
@@ -240,7 +248,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   output_csv_file <- paste0(directory_path, "/", trees_polygon_file_without_extension,
                             "_wpt", aoi_qualifier, ".csv")
   
-  write_csv(waypoints_transformed_renamed, output_csv_file)
+  write_csv(points_transformed_renamed, output_csv_file)
 
   # Return paths of output files  
   if (aoi_path != "") {
@@ -258,11 +266,26 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
 
 # Example usage
 # source("extract_centroids_wpt_missions.R")
-# 
-extract_centroids_wpt_missions(trees_polygon_path = "20241125_bci25haplot_m3e_rgb_gr0p07_infer.gpkg",
-                                aoi_path = "25haplot_wptne.kml",
-                                aoi_index = 1,
-                                aoi_qualifier = "ne",
-                                aoi_relation = "intersect",
-                                dsm_path = "20241125_bci25haplot_m3e_dsm.cog.tif",
-                                espg_code = 32617)
+#trees <- st_read("20240701_sblz3_p1_rgb_gr0p07_infer.gpkg") %>% 
+#  mutate(fid = as.integer(rownames(.)))%>%
+#  rename(polygon_id=fid)
+
+#over100 <- filter(trees, trees$area>100)
+
+#over100_adjusted <- over100 %>%dplyr::select(index,
+#                                           polygon_id,
+#                                           cluster_id,
+#                                           distance_from_takeoff_point,
+#                                           lon_x,
+#                                           lat_y,
+#                                           elevation_from_dsm,
+#                                           order) %>% 
+#  st_drop_geometry()%>%
+#  arrange(order)%>%
+#  mutate(order = rank(order))
+#st_write(over100,"20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg")
+
+# Run the function with the gpkg subsample
+extract_centroids_wpt_missions(trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg",
+                                dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif",
+                                espg_code = 32618)
