@@ -4,13 +4,25 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            aoi_qualifier = "", #optional, to differentiate if there are more than one polygon in the AOI layer
                                            aoi_relation = "", #optional, choice between within (trees fully within AOI) or intersect (trees with at least a part inside AOI)
                                            dsm_path, #required, DSM from the mapping mission
-                                           espg_code) #required, projected CRS
+                                           espg_code, #required, projected CRS
+                                           buffer_size) #buffer for path and tree
   {
+  
+  trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg"
+  dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif"
+  espg_code = 32618
+  aoi_path = "" #optional, if AOI is available
+  aoi_index = 1 #optional, if there are more than one polygon in the AOI layer
+  aoi_qualifier = "" #optional, to differentiate if there are more than one polygon in the AOI layer
+  aoi_relation = ""
+  buffer_size=3
+  
   require(exactextractr)
   require(raster)
   require(sf)
   require(tidyverse)
   require(TSP)
+  require(purrr)
   
   # Directory and basename
   directory_path <- dirname(trees_polygon_path)
@@ -63,9 +75,13 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
     # If no AOI, use all tree polygons
     trees_aoi <- trees
   }
-    
-  # create 1-m buffers around trees
-  sampled_trees_buffer <- st_buffer(trees_aoi, dist = 1)
+  
+  # Extract tree centroids from trees_aoi
+  
+  tree_centroids <- st_centroid(trees_aoi)
+  
+  # create 1-m buffers around tree centroids
+  sampled_trees_buffer <- st_buffer(tree_centroids, dist = buffer_size)
   plot(st_geometry(sampled_trees_buffer))
   
   # Extract DSM height value for each tree
@@ -108,17 +124,19 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   # Reorder the waypoints
   sorted_waypoints <- sampled_trees_centroids[waypoint_order, ]
   
+  waypoints_transformed <- st_transform(sorted_waypoints, crs=4326)
+  
+  sampled_trees_buffer <- sampled_trees_buffer[waypoint_order,]
+  
   # Plot the sorted waypoints to visualize the S-pattern
   plot(st_geometry(sorted_waypoints), type = "b", col = "blue", main = "Waypoints in S-pattern")
   text(st_coordinates(sorted_waypoints), pos = 4)
   
-  
-  # Transform waypoint coordinates to WGS84
-  waypoints_transformed <- st_transform(sorted_waypoints, 4326)
+  plot(st_geometry(sampled_trees_buffer), type="b", col="red", main ="Buffers in S-pattern")
   
   
   # Rename columns for CSV export
-  cluster_column <- if ("cluster_id" %in% colnames(waypoints_transformed)) "cluster_id" else NULL
+  cluster_column <- if ("cluster_id" %in% colnames(sampled_trees_buffer)) "cluster_id" else NULL
   
   #Adding max height between each pair of points
   #Extracting coordinates points
@@ -163,24 +181,47 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
     geometry = st_sfc(line_geoms, crs = st_crs(sorted_waypoints))
   )
   
-  # Reproject to UTM Zone 17N (EPSG: 32617)
-  vector_lines_utm <- st_transform(vector_lines, crs = 32617)
+  # Reproject to good UTM zone (with ESPG code)
+  vector_lines_utm <- st_transform(vector_lines, crs = espg_code)
   
   #Add a 1m buffer for vector lines between pair of points
   
-  buffered_path <- st_buffer(vector_lines_utm, dist=1)
+  buffered_path <- st_buffer(vector_lines_utm, dist=buffer_size)
   
   plot(buffered_path[1])
   
+  #Add the centroid buffer polygon at the extremities of every vector line
+  
+  # Create the paired list of two geometries from df2 for each df1 row
+  combined_paths_geom <- map2(
+    sampled_trees_buffer$geom[1:9],
+    sampled_trees_buffer$geom[2:10],
+    ~ st_union(.x, .y)
+  )
+  
+  
+  # Create the output sf object
+  trees_with_paths <- buffered_path %>%
+    mutate(
+      combined_path = st_sfc(combined_paths_geom, crs = st_crs(buffered_path)),
+    geometry = map2(geometry, combined_path, st_union) %>% st_sfc(crs = st_crs(sampled_trees_buffer)))%>%
+  select(-combined_path) %>%  # remove the extra column
+  st_as_sf()
+  
+    plot(trees_with_paths$geometry[1:9])
+
   #highest value for each vector line
-  highest_point <- exact_extract(dsm_raster, buffered_path, fun = c('max'))
+  highest_point <- exact_extract(dsm_raster, trees_with_paths, fun = function(values, coverage_fraction) {
+    quantile(values, probs = 0.99, na.rm = TRUE)
+  })
   
   #extract central points for path
-  buffer_centroids <- st_centroid(buffered_path)
+  buffer_centroids <- st_centroid(trees_with_paths)
   
   #Vector of zeros (factice polygon_ID for checkpoints)
   fid <- numeric(n-1)
 
+  
   #dataframe with only checkpoints
   checkpoints_transformed <- cbind(buffer_centroids,fid, highest_point)%>%
     rename(elev=highest_point,
@@ -218,16 +259,11 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
            lat_y = st_coordinates(combined_sf_transformed)[, 2],
            polygon_id = fid,
            cluster_id = if (!is.null(cluster_column)) .data[[cluster_column]] else fid,
-           order = 1:nrow(combined_sf_transformed),
-           #distance_from_takeoff_point = 0, ##TO REMOVE
-           index = 0,
-           type=type) %>% 
+           order =  if_else(type == "wpt", cumsum(type == "wpt"), 0))%>% 
     
-    dplyr::select(index,
-                  polygon_id,
+    dplyr::select(polygon_id,
                   cluster_id,
                   type, # takes place of distance from takeoff point column
-                  #distance_from_takeoff_point,
                   lon_x,
                   lat_y,
                   elevation_from_dsm = elev,
@@ -279,4 +315,4 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
 # Run the function with the gpkg subsample
 extract_centroids_wpt_missions(trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg",
                                 dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif",
-                                espg_code = 32618)
+                                espg_code = 32618, buffer_size=3)
