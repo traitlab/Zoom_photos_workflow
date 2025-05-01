@@ -8,14 +8,14 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            buffer_size) #buffer for path and tree
   {
   
-  trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg"
-  dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif"
-  espg_code = 32618
-  aoi_path = "" #optional, if AOI is available
-  aoi_index = 1 #optional, if there are more than one polygon in the AOI layer
-  aoi_qualifier = "" #optional, to differentiate if there are more than one polygon in the AOI layer
-  aoi_relation = ""
-  buffer_size=3
+  #trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg"
+  #dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif"
+  #espg_code = 32618
+  #aoi_path = "" #optional, if AOI is available
+  #aoi_index = 1 #optional, if there are more than one polygon in the AOI layer
+  #aoi_qualifier = "" #optional, to differentiate if there are more than one polygon in the AOI layer
+  #aoi_relation = ""
+  #buffer_size=3
   
   require(exactextractr)
   require(raster)
