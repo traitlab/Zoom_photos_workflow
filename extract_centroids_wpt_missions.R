@@ -5,17 +5,9 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
                                            aoi_relation = "", #optional, choice between within (trees fully within AOI) or intersect (trees with at least a part inside AOI)
                                            dsm_path, #required, DSM from the mapping mission
                                            espg_code, #required, projected CRS
-                                           buffer_size) #buffer for path and tree
+                                           buffer_path=10,#buffer around tree path
+                                           buffer_tree=3) #buffer around tree centroid
   {
-  
-  #trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg"
-  #dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif"
-  #espg_code = 32618
-  #aoi_path = "" #optional, if AOI is available
-  #aoi_index = 1 #optional, if there are more than one polygon in the AOI layer
-  #aoi_qualifier = "" #optional, to differentiate if there are more than one polygon in the AOI layer
-  #aoi_relation = ""
-  #buffer_size=3
   
   require(exactextractr)
   require(raster)
@@ -81,11 +73,11 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   tree_centroids <- st_centroid(trees_aoi)
   
   # create 1-m buffers around tree centroids
-  sampled_trees_buffer <- st_buffer(tree_centroids, dist = buffer_size)
+  sampled_trees_buffer <- st_buffer(tree_centroids, dist = buffer_tree)
   plot(st_geometry(sampled_trees_buffer))
   
   # Extract DSM height value for each tree
-  sampled_trees_elev <- exact_extract(dsm_raster, sampled_trees_buffer, fun = 'max')
+  sampled_trees_elev <- exact_extract(dsm_raster, sampled_trees_buffer, fun = ('max'))
   
   sampled_trees <- trees_aoi %>% 
     mutate(elev = sampled_trees_elev)
@@ -169,8 +161,8 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   for (i in seq_len(nrow(vectors_df))) {
     coords_pair <- rbind(
-      st_coordinates(sorted_waypoints[i, ]),
-      st_coordinates(sorted_waypoints[i+1, ])
+      coords[i, ],
+      coords[i+1, ]
     )
     line_geoms[[i]] <- st_linestring(coords_pair)
   }
@@ -186,7 +178,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   #Add a 1m buffer for vector lines between pair of points
   
-  buffered_path <- st_buffer(vector_lines_utm, dist=buffer_size)
+  buffered_path <- st_buffer(vector_lines_utm, dist=buffer_path)
   
   plot(buffered_path[1])
   
@@ -209,10 +201,10 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   st_as_sf()
   
     plot(trees_with_paths$geometry[1:9])
-
+    
   #highest value for each vector line
   highest_point <- exact_extract(dsm_raster, trees_with_paths, fun = function(values, coverage_fraction) {
-    quantile(values, probs = 0.99, na.rm = TRUE)
+    quantile(values, probs = 0.999, na.rm = TRUE)
   })
   
   #extract central points for path
@@ -252,14 +244,23 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   # Bind into a single sf object
   combined_sf_transformed <- do.call(rbind, interleaved_points)
   
-  
+
   #####Preparation for formatting CSV file####
+  
   points_transformed_renamed <- combined_sf_transformed %>% 
     mutate(lon_x = st_coordinates(combined_sf_transformed)[, 1],
            lat_y = st_coordinates(combined_sf_transformed)[, 2],
            polygon_id = fid,
            cluster_id = if (!is.null(cluster_column)) .data[[cluster_column]] else fid,
-           order =  if_else(type == "wpt", cumsum(type == "wpt"), 0))%>% 
+           order =  if_else(type == "wpt", cumsum(type == "wpt"), 0),
+           elev= replace(
+             elev,
+             which(type == "cpt"),
+             sapply( which(type == "cpt"),
+               function(i) {
+                 inds <- max(1, i - 1):min(n(), i + 1)
+                 max(combined_sf_transformed$elev[inds], na.rm = TRUE)
+               })))%>% 
     
     dplyr::select(polygon_id,
                   cluster_id,
@@ -315,4 +316,4 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
 # Run the function with the gpkg subsample
 extract_centroids_wpt_missions(trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg",
                                 dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif",
-                                espg_code = 32618, buffer_size=3)
+                                espg_code = 32618)
