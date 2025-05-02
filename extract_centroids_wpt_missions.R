@@ -207,7 +207,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
     
   #highest value for each vector line
   highest_point <- exact_extract(dsm_raster, trees_with_paths, fun = function(values, coverage_fraction) {
-    quantile(values, probs = 0.999, na.rm = TRUE)
+    quantile(values, probs = 1, na.rm = TRUE) #change probs to change selected elevation by quantile
   })
   
   #extract central points for path
