@@ -185,12 +185,16 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   
   plot(buffered_path[1])
   
-  #Add the centroid buffer polygon at the extremities of every vector line
+
+  # Create the paired list of two geometries from trees buffer for each path row
+  # Add the centroid buffer polygon at the extremities of every vector line
+
+  n_trees <- nrow(sampled_trees_buffer)
   
-  # Create the paired list of two geometries from df2 for each df1 row
+    
   combined_paths_geom <- map2(
-    sampled_trees_buffer$geom[1:9],
-    sampled_trees_buffer$geom[2:10],
+    sampled_trees_buffer$geom[1:n_trees-1],
+    sampled_trees_buffer$geom[2:n_trees],
     ~ st_union(.x, .y)
   )
   
@@ -203,7 +207,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   select(-combined_path) %>%  # remove the extra column
   st_as_sf()
   
-    plot(trees_with_paths$geometry[1:9])
+    plot(trees_with_paths$geometry[1:n_trees])
     
   #highest value for each vector line
   highest_point <- exact_extract(dsm_raster, trees_with_paths, fun = function(values, coverage_fraction) {
