@@ -77,8 +77,11 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   plot(st_geometry(sampled_trees_buffer))
   
   # Extract DSM height value for each tree
-  sampled_trees_elev <- exact_extract(dsm_raster, sampled_trees_buffer, fun = ('max'))
+  sampled_trees_elev <- exact_extract(dsm_raster, sampled_trees_buffer, fun = function(values, coverage_fraction) {
+    quantile(values, probs = 1, na.rm = TRUE) #change probs value to get elevation values per quantile (e.g. 0.99 is 99th percentile)
+  })
   
+  #Integrate elevation to sampled_trees df
   sampled_trees <- trees_aoi %>% 
     mutate(elev = sampled_trees_elev)
   
@@ -130,9 +133,9 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   # Rename columns for CSV export
   cluster_column <- if ("cluster_id" %in% colnames(sampled_trees_buffer)) "cluster_id" else NULL
   
-  #Adding max height between each pair of points
-  #Extracting coordinates points
+  ####Adding max height between each pair of points####
   
+  #Extracting coordinates points
   coords <- st_coordinates(sorted_waypoints)
   
   # Compute pairwise vectors for following points
@@ -259,12 +262,12 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
              sapply( which(type == "cpt"),
                function(i) {
                  inds <- max(1, i - 1):min(n(), i + 1)
-                 max(combined_sf_transformed$elev[inds], na.rm = TRUE)
+                 max(combined_sf_transformed$elev[inds], na.rm = TRUE) #Select maximum height in path and polygons for chekpoint height
                })))%>% 
     
     dplyr::select(polygon_id,
                   cluster_id,
-                  type, # takes place of distance from takeoff point column
+                  type, # replace of distance from takeoff point column
                   lon_x,
                   lat_y,
                   elevation_from_dsm = elev,
@@ -292,7 +295,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
 }
 
 
-# Example usage
+#### Example usage####
 # source("extract_centroids_wpt_missions.R")
 #trees <- st_read("20240701_sblz3_p1_rgb_gr0p07_infer.gpkg") %>% 
 #  mutate(fid = as.integer(rownames(.)))%>%
@@ -313,7 +316,7 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
 #  mutate(order = rank(order))
 #st_write(over100,"20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg")
 
-# Run the function with the gpkg subsample
-extract_centroids_wpt_missions(trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg",
-                                dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif",
-                                espg_code = 32618)
+## Run the function with the gpkg subsample
+#extract_centroids_wpt_missions(trees_polygon_path = "20240701_sblz3_p1_rgb_gr0p07_subsample_infer.gpkg",
+#                                dsm_path = "20240701_sblz3_p1_dsm_highdis.cog.tif",
+#                                espg_code = 32618)
