@@ -27,8 +27,8 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   dsm_max <- NA
   
   # Read tree polygons file
-  trees <- st_read(trees_polygon_path) %>% 
-    mutate(fid = as.integer(rownames(.)))
+  trees <- st_read(trees_polygon_path, fid_column_name = "fid") %>%
+    rename(tree_id = fid)
   
   # Read DSM raster file
   dsm_crs <- paste0("EPSG:", espg_code)
@@ -218,11 +218,11 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   buffer_centroids <- st_centroid(trees_with_paths)
   
   #Vector of zeros (factice polygon_ID for checkpoints)
-  fid <- numeric(n-1)
+  tree_id <- numeric(n-1)
 
   
   #dataframe with only checkpoints
-  checkpoints_transformed <- cbind(buffer_centroids,fid, highest_point)%>%
+  checkpoints_transformed <- cbind(buffer_centroids, tree_id, highest_point)%>%
     rename(elev=highest_point,
          geom=geometry)%>%
     st_transform(4326)
@@ -257,8 +257,8 @@ extract_centroids_wpt_missions <- function(trees_polygon_path, #required, select
   points_transformed_renamed <- combined_sf_transformed %>% 
     mutate(lon_x = st_coordinates(combined_sf_transformed)[, 1],
            lat_y = st_coordinates(combined_sf_transformed)[, 2],
-           polygon_id = fid,
-           cluster_id = if (!is.null(cluster_column)) .data[[cluster_column]] else fid,
+           polygon_id = tree_id,
+           cluster_id = if (!is.null(cluster_column)) .data[[cluster_column]] else tree_id,
            order =  if_else(type == "wpt", cumsum(type == "wpt"), 0),
            elev= replace(
              elev,
